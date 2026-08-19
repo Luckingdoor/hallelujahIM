@@ -3,7 +3,7 @@
 # 资源全部取自本仓库，因此不需要事先装过 hallelujah。
 # 只需要 Command Line Tools（xcode-select --install）。
 #
-#   sh build-standalone.sh          # 产物在 ./build/hallelujah.app
+#   bash build-standalone.sh          # 产物在 ./build/hallelujah.app
 set -e
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
