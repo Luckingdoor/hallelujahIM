@@ -1,4 +1,4 @@
-// 生成菜单栏模板图标：一个「英」字，输出多分辨率 TIFF。
+// 生成菜单栏模板图标：圆角方块 + 挖空的「英」字，输出多分辨率 TIFF。
 //
 // 为什么是 TIFF 而不是 PNG 或 PDF：
 //   - PNG 单一位图，系统按像素尺寸显示，出 64px 就会显示成一个大方块；
@@ -6,10 +6,9 @@
 //   - TIFF 可以把 16pt 的逻辑尺寸和 1x/2x/3x 三张位图打包在一起，
 //     尺寸被逻辑点锁住，Retina 下又不发虚。系统自带的 AinuIM 用的也是 .tiff。
 //
-// 模板图标只有 alpha 有意义：只画字形、背景透明，系统按深浅色主题填色。
-// 系统自带输入法用的也是纯字形（拼音是「拼」、ABC 是「A」），所以切换输入法时
-// 那个 HUD 会在蓝底上把字形填成白色。早先画成「方块挖空字形」，到了 HUD 上整块
-// 被填满、字成了透明的洞，看起来就是一片空白。
+// 模板图标只有 alpha 有意义：方块实心、字形挖空，系统按深浅色主题填色。
+// 这跟系统自带输入法是一个画法（见 AinuIM 的 Ainu.tiff，以及输入法列表里的
+// ABC 和拼音），所以列表里显示成深色圆角方块配反白的字。
 //
 //   clang -fobjc-arc -framework Cocoa -framework CoreText make-icon.m -o /tmp/make-icon
 //   /tmp/make-icon himTemplate.tiff
@@ -18,12 +17,12 @@
 #import <CoreText/CoreText.h>
 
 static const CGFloat kPointSize = 16.0;    // 菜单栏图标的逻辑尺寸
-static const CGFloat kInkRatio = 0.88;     // 字形墨迹占边长比例
+static const CGFloat kCornerRatio = 0.22;  // 圆角占边长比例，对齐系统图标
+static const CGFloat kInkRatio = 0.70;     // 字形墨迹占边长比例
 static NSString *const kGlyph = @"英";
 
 static NSBitmapImageRep *RepForScale(CGFloat scale) {
     NSInteger px = (NSInteger)lround(kPointSize * scale);
-
 
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
                                                                    pixelsWide:px
@@ -50,8 +49,9 @@ static NSBitmapImageRep *RepForScale(CGFloat scale) {
     // 溢出画布，只剩左下一角。
     CGFloat side = kPointSize;
 
-    // 系统 UI 字体不一定直接带中文字形，用 CTFontCreateForString 走一次 fallback
-    CTFontRef base = CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, side, NULL);
+    // 系统 UI 字体不一定直接带中文字形，用 CTFontCreateForString 走一次 fallback。
+    // 用 Medium 字重：常规字重的中文笔画太细，挖空到 16pt 会糊成一团。
+    CTFontRef base = (__bridge_retained CTFontRef)[NSFont systemFontOfSize:side weight:NSFontWeightMedium];
     CFRange full = CFRangeMake(0, (CFIndex)kGlyph.length);
     CTFontRef font = CTFontCreateForString(base, (__bridge CFStringRef)kGlyph, full);
     CFRelease(base);
@@ -59,6 +59,7 @@ static NSBitmapImageRep *RepForScale(CGFloat scale) {
     UniChar ch = [kGlyph characterAtIndex:0];
     CGGlyph glyph = 0;
     CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRoundedRect(path, NULL, CGRectMake(0, 0, side, side), side * kCornerRatio, side * kCornerRatio);
     if (CTFontGetGlyphsForCharacters(font, &ch, &glyph, 1)) {
         CGPathRef glyphPath = CTFontCreatePathForGlyph(font, glyph, NULL);
         if (glyphPath) {
@@ -79,7 +80,7 @@ static NSBitmapImageRep *RepForScale(CGFloat scale) {
 
     CGContextSetGrayFillColor(ctx, 0.0, 1.0);
     CGContextAddPath(ctx, path);
-    CGContextFillPath(ctx);
+    CGContextEOFillPath(ctx); // even-odd：方块减去字形
     CGPathRelease(path);
 
     [NSGraphicsContext restoreGraphicsState];

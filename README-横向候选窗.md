@@ -24,9 +24,13 @@
 
 **菜单栏与切换提示的图标**
 
-<img alt="菜单栏图标" src="docs/images/menubar-icon.png" width="300">
+<img alt="与系统图标对比" src="docs/images/menubar-icon.png" width="220">
 
-图标是一个「英」字的模板图标，跟系统自带输入法（拼音是「拼」、ABC 是「A」）一个路子：只画字形、背景透明，由系统按场景填色——输入法菜单里填黑/白，切换输入法的 HUD 上是蓝底白字。
+图标是「圆角方块挖空一个『英』字」的模板图标，跟系统自带输入法同一个画法——上图左边是系统 AinuIM 的图标作参照，右边是本输入法。模板图标只有 alpha 有意义，由系统按场景填色：
+
+<img alt="三种填色场景" src="docs/images/menubar-icon-states.png" width="300">
+
+依次是输入法列表里的浅色场景、切换输入法的 HUD、深色场景。
 
 ## 按键
 
