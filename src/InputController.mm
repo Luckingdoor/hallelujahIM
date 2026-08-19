@@ -3,17 +3,15 @@
 
 #import "InputApplicationDelegate.h"
 #import "InputController.h"
-#import "NSScreen+PointConversion.h"
 
-extern IMKCandidates *sharedCandidates;
 extern NSUserDefaults *preference;
 extern ConversionEngine *engine;
 
 #define MAX_RECENT_WORDS 4
 
 typedef NSInteger KeyCode;
-static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC = 53, KEY_ARROW_DOWN = 125, KEY_ARROW_UP = 126,
-                     KEY_RIGHT_SHIFT = 60, KEY_RIGHT_COMMAND = 54;
+static const KeyCode KEY_RETURN = 36, KEY_TAB = 48, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC = 53, KEY_ARROW_LEFT = 123,
+                     KEY_ARROW_RIGHT = 124, KEY_ARROW_DOWN = 125, KEY_ARROW_UP = 126, KEY_RIGHT_SHIFT = 60, KEY_RIGHT_COMMAND = 54;
 
 @interface InputController ()
 
@@ -154,31 +152,44 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
     char ch = [characters characterAtIndex:0];
     if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
         [self originalBufferAppend:characters client:sender];
-        [sharedCandidates updateCandidates];
-        [sharedCandidates show:kIMKLocateCandidatesBelowHint];
+        [self refreshCandidates];
+        return YES;
+    }
+
+    if ([self handleCandidateNavigationKey:keyCode]) {
         return YES;
     }
 
     if ([[NSCharacterSet decimalDigitCharacterSet] characterIsMember:ch]) {
-        if (hasBufferedText && [sharedCandidates isVisible]) {
-            int pressedNumber = characters.intValue;
-            NSString *candidate;
-            int pageSize = 9;
-            if (_currentCandidateIndex <= pageSize) {
-                candidate = _candidates[pressedNumber - 1];
-            } else {
-                candidate = _candidates[pageSize * (_currentCandidateIndex / pageSize - 1) + (_currentCandidateIndex % pageSize) +
-                                        pressedNumber - 1];
+        if (hasBufferedText && [self candidateWindow].isVisible) {
+            if ([[self candidateWindow] commitCandidateAtRowPosition:(NSUInteger)characters.intValue]) {
+                return YES;
             }
-            [self cancelComposition];
-            [self setComposedBuffer:candidate];
-            [self setOriginalBuffer:candidate];
-            [self commitCompositionWithoutSpace:sender];
-            return YES;
         }
     }
 
     return NO;
+}
+
+// ← → 换候选，↓ 展开、↑ 收起，Tab 跳到下一行；返回 YES 表示按键已被候选窗消费
+- (BOOL)handleCandidateNavigationKey:(NSInteger)keyCode {
+    if (!_candidateWindow.isVisible) {
+        return NO;
+    }
+    switch (keyCode) {
+    case KEY_ARROW_LEFT:
+        return [_candidateWindow moveLeft];
+    case KEY_ARROW_RIGHT:
+        return [_candidateWindow moveRight];
+    case KEY_ARROW_UP:
+        return [_candidateWindow moveUp];
+    case KEY_ARROW_DOWN:
+        return [_candidateWindow moveDown];
+    case KEY_TAB:
+        return [_candidateWindow moveToNextRow];
+    default:
+        return NO;
+    }
 }
 
 - (BOOL)onKeyEvent:(NSEvent *)event client:(id)sender {
@@ -224,26 +235,13 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
     char ch = [characters characterAtIndex:0];
     if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
         [self originalBufferAppend:characters client:sender];
-
-        [sharedCandidates updateCandidates];
-        [sharedCandidates show:kIMKLocateCandidatesBelowHint];
+        [self refreshCandidates];
         return YES;
     }
 
     if ([self isMojaveAndLaterSystem]) {
-        BOOL isCandidatesVisible = [sharedCandidates isVisible];
-        if (isCandidatesVisible) {
-            if (keyCode == KEY_ARROW_DOWN) {
-                [sharedCandidates moveDown:self];
-                _currentCandidateIndex++;
-                return NO;
-            }
-
-            if (keyCode == KEY_ARROW_UP) {
-                [sharedCandidates moveUp:self];
-                _currentCandidateIndex--;
-                return NO;
-            }
+        if ([self handleCandidateNavigationKey:keyCode]) {
+            return YES;
         }
 
         if ([[NSCharacterSet decimalDigitCharacterSet] characterIsMember:ch]) {
@@ -253,20 +251,8 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
                 return YES;
             }
 
-            if (isCandidatesVisible) { // use 1~9 digital numbers as selection keys
-                int pressedNumber = characters.intValue;
-                NSString *candidate;
-                int pageSize = 9;
-                if (_currentCandidateIndex <= pageSize) {
-                    candidate = _candidates[pressedNumber - 1];
-                } else {
-                    candidate = _candidates[pageSize * (_currentCandidateIndex / pageSize - 1) + (_currentCandidateIndex % pageSize) +
-                                            pressedNumber - 1];
-                }
-                [self cancelComposition];
-                [self setComposedBuffer:candidate];
-                [self setOriginalBuffer:candidate];
-                [self commitComposition:sender];
+            // 数字键选中当前行的第 n 个
+            if (_candidateWindow.isVisible && [_candidateWindow commitCandidateAtRowPosition:(NSUInteger)characters.intValue]) {
                 return YES;
             }
         }
@@ -281,6 +267,32 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
     }
 
     return NO;
+}
+
+- (CandidateWindow *)candidateWindow {
+    if (_candidateWindow == nil) {
+        _candidateWindow = [[CandidateWindow alloc] init];
+        _candidateWindow.delegate = self;
+    }
+    return _candidateWindow;
+}
+
+- (void)refreshCandidates {
+    NSArray *list = [self candidates:self];
+    CandidateWindow *window = [self candidateWindow];
+    [window setCandidates:list];
+    if (list.count == 0) {
+        [window hide];
+        return;
+    }
+    [window showRelativeToCursorRect:[self currentLineRect]];
+}
+
+// IMKit 给的是屏幕坐标下当前输入行的矩形，候选窗据此定位
+- (NSRect)currentLineRect {
+    NSRect lineRect = NSZeroRect;
+    [_currentClient attributesForCharacterIndex:0 lineHeightRectangle:&lineRect];
+    return lineRect;
 }
 
 - (BOOL)isMojaveAndLaterSystem {
@@ -302,8 +314,7 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
         [self showPreeditString:convertedString];
 
         if (convertedString && convertedString.length > 0) {
-            [sharedCandidates updateCandidates];
-            [sharedCandidates show:kIMKLocateCandidatesBelowHint];
+            [self refreshCandidates];
         } else {
             [self reset];
         }
@@ -354,13 +365,8 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
     [self setComposedBuffer:@""];
     [self setOriginalBuffer:@""];
     _insertionIndex = 0;
-    _currentCandidateIndex = 1;
-    [sharedCandidates clearSelection];
-    [sharedCandidates hide];
-    _candidates = [[NSMutableArray alloc] init];
-    [sharedCandidates setCandidateData:@[]];
-    [_annotationWin setAnnotation:@""];
-    [_annotationWin hideWindow];
+    [_candidateWindow setCandidates:@[]];
+    [_candidateWindow hide]; // hide 内部会把展开状态复位，下次输入从单行开始
 }
 
 - (void)resetContext {
@@ -455,10 +461,8 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
     if (_pinyinMode) {
         NSArray *hanziList = [engine fetchHanZiByPinyinWithPrefix:originalInput];
         if (hanziList.count == 0) {
-            _candidates = [NSMutableArray arrayWithArray:@[ originalInput ]];
             return @[ originalInput ];
         }
-        _candidates = [NSMutableArray arrayWithArray:hanziList];
         return hanziList;
     }
 
@@ -475,47 +479,29 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
             [blended addObjectsFromArray:predictions];
             [blended addObjectsFromArray:candidateList];
             NSArray *result = [blended array];
-            _candidates = [NSMutableArray arrayWithArray:result];
             return result;
         }
     }
 
-    _candidates = [NSMutableArray arrayWithArray:candidateList];
     return candidateList;
 }
 
-- (void)candidateSelectionChanged:(NSAttributedString *)candidateString {
-    [self _updateComposedBuffer:candidateString];
+#pragma mark - CandidateWindowDelegate
 
-    [self showPreeditString:candidateString.string];
-
-    _insertionIndex = candidateString.length;
-
-    BOOL showTranslation = [preference boolForKey:@"showTranslation"];
-    if (showTranslation) {
-        [self showAnnotation:candidateString];
-    }
+- (void)candidateWindow:(CandidateWindow *)window didHighlightCandidate:(NSString *)candidate {
+    [self setComposedBuffer:candidate];
+    [self showPreeditString:candidate];
+    _insertionIndex = candidate.length;
 }
 
-- (void)candidateSelected:(NSAttributedString *)candidateString {
-    [self _updateComposedBuffer:candidateString];
-
+- (void)candidateWindow:(CandidateWindow *)window didCommitCandidate:(NSString *)candidate {
+    [self setComposedBuffer:candidate];
     [self commitComposition:_currentClient];
-}
-
-- (void)_updateComposedBuffer:(NSAttributedString *)candidateString {
-    [self setComposedBuffer:candidateString.string];
 }
 
 - (void)activateServer:(id)sender {
     [sender overrideKeyboardWithKeyboardNamed:@"com.apple.keylayout.US"];
 
-    if (_annotationWin == nil) {
-        _annotationWin = [AnnotationWinController sharedController];
-    }
-
-    _currentCandidateIndex = 1;
-    _candidates = [[NSMutableArray alloc] init];
     _recentWords = [[NSMutableArray alloc] init];
 }
 
@@ -553,55 +539,6 @@ static const KeyCode KEY_RETURN = 36, KEY_SPACE = 49, KEY_DELETE = 51, KEY_ESC =
                 NSLog(@"Failed to run the app: %@", error.localizedDescription);
             }
         }];
-}
-
-- (void)showAnnotation:(NSAttributedString *)candidateString {
-    NSString *annotation = [engine getAnnotation:candidateString.string];
-    if (annotation && annotation.length > 0) {
-        [_annotationWin setAnnotation:annotation];
-        [_annotationWin showWindow:[self calculatePositionOfTranslationWindow]];
-    } else {
-        [_annotationWin hideWindow];
-    }
-}
-
-- (NSPoint)calculatePositionOfTranslationWindow {
-    // Mac Cocoa ui default coordinate system: left-bottom, origin: (x:0, y:0) ↑→
-    // see https://developer.apple.com/library/archive/documentation/General/Conceptual/Devpedia-CocoaApp/CoordinateSystem.html
-    // see https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CocoaDrawingGuide/Transforms/Transforms.html
-    // Notice: there is a System bug: candidateFrame.origin always be (0,0), so we can't depending on the origin point.
-    NSRect candidateFrame = [sharedCandidates candidateFrame];
-
-    // line-box of current input text: (width:1, height:17)
-    NSRect lineRect;
-    [_currentClient attributesForCharacterIndex:0 lineHeightRectangle:&lineRect];
-    NSPoint cursorPoint = NSMakePoint(NSMinX(lineRect), NSMinY(lineRect));
-    NSPoint positionPoint = NSMakePoint(NSMinX(lineRect), NSMinY(lineRect));
-    positionPoint.x = positionPoint.x + candidateFrame.size.width;
-    NSScreen *currentScreen = [NSScreen currentScreenForMouseLocation];
-    NSPoint currentPoint = [currentScreen convertPointToScreenCoordinates:cursorPoint];
-    NSRect rect = currentScreen.frame;
-    int screenWidth = (int)rect.size.width;
-    int marginToCandidateFrame = 20;
-    int annotationWindowWidth = _annotationWin.width + marginToCandidateFrame;
-    int lineHeight = lineRect.size.height; // 17px
-
-    if (screenWidth - currentPoint.x >= candidateFrame.size.width) {
-        // safe distance to display candidateFrame at current cursor's left-side.
-        if (screenWidth - currentPoint.x < candidateFrame.size.width + annotationWindowWidth) {
-            positionPoint.x = positionPoint.x - candidateFrame.size.width - annotationWindowWidth;
-        }
-    } else {
-        // assume candidateFrame will display at current cursor's right-side.
-        positionPoint.x = screenWidth - candidateFrame.size.width - annotationWindowWidth;
-    }
-    if (currentPoint.y >= candidateFrame.size.height) {
-        positionPoint.y = positionPoint.y - 8; // Both 8 and 3 are magic numbers to adjust the position
-    } else {
-        positionPoint.y = positionPoint.y + candidateFrame.size.height + lineHeight + 3;
-    }
-
-    return positionPoint;
 }
 
 @end

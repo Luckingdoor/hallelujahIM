@@ -1,3 +1,21 @@
+> ### 📌 这是横向候选窗改造版
+>
+> 本仓库 fork 自 [dongyuwei/hallelujahIM](https://github.com/dongyuwei/hallelujahIM)，把候选词面板从系统自带的单列纵向列表改成了**自绘的横向菜单**，按 `↓` 可展开成多行网格，深浅色自动跟随系统。
+>
+> **[→ 改造说明、效果图与安装方法](README-横向候选窗.md)**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/candidates-dark.png">
+  <img alt="横向候选窗" src="docs/images/candidates-light.png" width="640">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/candidates-dark-expanded.png">
+  <img alt="按 ↓ 展开后的候选窗" src="docs/images/candidates-light-expanded.png" width="640">
+</picture>
+
+---
+
 ![Platform:macOS](https://img.shields.io/badge/platform-macOS-blue)
 ![Platform:windows](https://img.shields.io/badge/platform-windows-blue)
 ![Platform:linux](https://img.shields.io/badge/platform-linux-blue)

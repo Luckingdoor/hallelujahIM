@@ -8,7 +8,6 @@ NSUserDefaults *preference;
 ConversionEngine *engine;
 
 const NSString *kConnectionName = @"Hallelujah_1_Connection";
-IMKCandidates *sharedCandidates;
 
 static const unsigned char kInstallLocation[] = "/Library/Input Methods/hallelujah.app";
 static NSString *const kSourceID = @"github.dongyuwei.inputmethod.hallelujahInputMethod";
@@ -59,7 +58,7 @@ void deactivateInputSource() {
 
 void initPreference() {
     preference = [NSUserDefaults standardUserDefaults];
-    NSDictionary *defaultPrefs = @{@"commitWordWithSpace" : @YES, @"showTranslation" : @YES, @"enableNextWordPrediction" : @NO};
+    NSDictionary *defaultPrefs = @{@"commitWordWithSpace" : @YES, @"showTranslation" : @NO, @"enableNextWordPrediction" : @NO};
     [preference registerDefaults:defaultPrefs];
 }
 
@@ -81,16 +80,12 @@ int main(int argc, char *argv[]) {
     NSString *identifier = [NSBundle mainBundle].bundleIdentifier;
     IMKServer *server = [[IMKServer alloc] initWithName:(NSString *)kConnectionName bundleIdentifier:identifier];
 
-    sharedCandidates = [[IMKCandidates alloc] initWithServer:server panelType:kIMKSingleColumnScrollingCandidatePanel];
-
-    if (!sharedCandidates) {
-        NSLog(@"Fatal error: Cannot initialize shared candidate panel with connection %@.", kConnectionName);
+    if (!server) {
+        NSLog(@"Fatal error: Cannot initialize IMKServer with connection %@.", kConnectionName);
         return -1;
     }
 
     engine = [ConversionEngine sharedEngine];
-
-    [[NSBundle mainBundle] loadNibNamed:@"AnnotationWindow" owner:[NSApplication sharedApplication] topLevelObjects:nil];
 
     [[NSBundle mainBundle] loadNibNamed:@"PreferencesMenu" owner:[NSApplication sharedApplication] topLevelObjects:nil];
 

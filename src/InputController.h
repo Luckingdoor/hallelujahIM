@@ -1,22 +1,20 @@
 #import <Cocoa/Cocoa.h>
 #import <InputMethodKit/InputMethodKit.h>
 
-#import "AnnotationWinController.h"
+#import "CandidateWindow.h"
 #import "ConversionEngine.h"
 
-@interface InputController : IMKInputController {
+@interface InputController : IMKInputController <CandidateWindowDelegate> {
     NSMutableString *_composedBuffer;
     NSMutableString *_originalBuffer;
     NSInteger _insertionIndex;
-    NSInteger _currentCandidateIndex;
-    NSMutableArray *_candidates;
     BOOL _defaultEnglishMode;
     BOOL _pinyinMode;
     id _currentClient;
     NSUInteger _lastModifiers[2];
     NSEventType _lastEventTypes[2];
-    AnnotationWinController *_annotationWin;
     NSMutableArray<NSString *> *_recentWords;
+    CandidateWindow *_candidateWindow;
 }
 
 - (NSMutableString *)composedBuffer;

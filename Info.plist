@@ -50,6 +50,6 @@
 		<string>Latn</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
-	<string>him.png</string>
+	<string>himTemplate.tiff</string>
 </dict>
 </plist>

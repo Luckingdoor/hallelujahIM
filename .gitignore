@@ -49,3 +49,6 @@ Pods/Pods.xcodeproj/xcuserdata/yuweidong.xcuserdatad/
 *.xcuserdatad
 *.sqlite3-shm
 *.sqlite3-wal
+
+dist/
+hallelujah-原版备份.app/
