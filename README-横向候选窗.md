@@ -24,9 +24,11 @@
 
 **菜单栏与切换提示的图标**
 
-<img alt="与系统图标对比" src="docs/images/menubar-icon.png" width="220">
+<img alt="与系统图标对比" src="docs/images/menubar-icon.png" width="260">
 
-图标是「圆角方块挖空一个『英』字」的模板图标，跟系统自带输入法同一个画法——上图左边是系统 AinuIM 的图标作参照，右边是本输入法。模板图标只有 alpha 有意义，由系统按场景填色：
+图标是「圆角方块挖空一个『英』字」的模板图标，跟系统自带输入法同一个画法——上图左起是系统的「拼」和「简」，最右是本输入法。尺寸 16×16pt、圆角 0.152H、字形墨迹 0.6875H，这几个数都是量自系统图标的（它们藏在 `SCIM.app/Contents/PlugIns/SCIM_Extension.appex/Contents/Resources/` 里）。
+
+模板图标只有 alpha 有意义，由系统按场景填色：
 
 <img alt="三种填色场景" src="docs/images/menubar-icon-states.png" width="300">
 
