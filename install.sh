@@ -16,13 +16,22 @@ if [ -d "$TARGET" ] && [ ! -d "$BACKUP" ]; then
     sudo chown -R "$(id -u):$(id -g)" "$BACKUP"
 fi
 
+echo "==> 注销旧的输入源注册"
+# 必须用旧的那份二进制来注销（它知道自己注册时用的 source ID），而且要在当前
+# 用户的图形会话里跑：加 sudo 会跑到 root 会话去，TIS 的改动不会落到用户这边。
+if [ -d "$TARGET" ]; then
+    "$TARGET/Contents/MacOS/hallelujah" --deactivate 2>/dev/null || true
+fi
+
 echo "==> 停止正在运行的输入法"
 pkill -9 hallelujah 2>/dev/null || true
 
 echo "==> 安装"
 sudo rm -rf "$TARGET"
 sudo cp -R "$APP" "$TARGET"
-sudo "$TARGET/Contents/MacOS/hallelujah" --install
+# 让 HIToolbox 丢掉缓存的输入源信息，再重新注册
+killall -HUP cfprefsd 2>/dev/null || true
+"$TARGET/Contents/MacOS/hallelujah" --install
 
 # 系统常常在 rm/cp 还没做完时就把输入法重新拉起来，那样跑的仍是旧映像
 # （表现为改动"没生效"）。文件都就位后再杀一次，下次启动才会加载新二进制。

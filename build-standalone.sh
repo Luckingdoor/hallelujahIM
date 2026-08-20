@@ -51,6 +51,10 @@ sed 's/\$(PRODUCT_BUNDLE_IDENTIFIER)/github.dongyuwei.inputmethod.hallelujahInpu
   "$SRC/Info.plist" > "$APP/Contents/Info.plist"
 # 翻译窗已移除：去掉 main nib，否则系统仍会加载出一个 alpha=0 的常驻面板
 /usr/libexec/PlistBuddy -c "Delete :NSMainNibFile" "$APP/Contents/Info.plist" 2>/dev/null || true
+# 每次构建换一个 CFBundleVersion。TIS 按 bundle 版本缓存输入源信息，版本不变
+# 就不会重新解析 Info.plist——改了 tsInputModeListKey / 图标声明也不会生效，
+# 看起来就像「装了但没反应」。
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d%H%M%S)" "$APP/Contents/Info.plist"
 
 R="$APP/Contents/Resources"
 cp "$SRC/dictionary/cedict.json" \
@@ -58,7 +62,7 @@ cp "$SRC/dictionary/cedict.json" \
    "$SRC/dictionary/pinyin_data.sqlite3" \
    "$SRC/dictionary/words_with_frequency_and_translation_and_ipa.sqlite3" "$R/"
 cp "$SRC/src/phonex.js" "$R/"
-cp "$SRC/him.icns" "$SRC/him.png" "$SRC/himTemplate.tiff" "$R/"
+cp "$SRC/him.icns" "$SRC/him.png" "$SRC/himTemplate.tiff" "$SRC/himGlyph@2x.pdf" "$R/"
 cp "$SRC"/web/* "$R/web/"
 cp "$SRC/en.lproj/InfoPlist.strings" "$R/en.lproj/"
 

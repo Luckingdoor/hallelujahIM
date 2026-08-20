@@ -10,7 +10,10 @@ ConversionEngine *engine;
 const NSString *kConnectionName = @"Hallelujah_1_Connection";
 
 static const unsigned char kInstallLocation[] = "/Library/Input Methods/hallelujah.app";
-static NSString *const kSourceID = @"github.dongyuwei.inputmethod.hallelujahInputMethod";
+// 必须和 Info.plist 里 tsInputModeListKey 那个输入模式的 TISInputSourceID 一致：
+// 声明了输入模式之后，系统注册出来的输入源就是模式那个 ID（带 .english 后缀），
+// 这里拿旧的 bundle ID 去找会找不到，启用/选中都会落空。
+static NSString *const kSourceID = @"github.dongyuwei.inputmethod.hallelujahInputMethod.english";
 
 void registerInputSource() {
     CFURLRef installedLocationURL =

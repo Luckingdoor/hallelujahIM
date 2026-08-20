@@ -17,11 +17,12 @@
 #import <CoreText/CoreText.h>
 
 static const CGFloat kHeight = 16.0;       // 菜单栏图标的逻辑高度
-// 宽高比。系统自带的输入法图标（SCIM/TCIM/Korean/Ainu 等 20 个）实测全是 1:1，
-// 这里跟随。若要改成长方形，注意让逻辑宽落在整数上（比如 1.3125 → 21pt）：
-// 20.8pt 这种在 2x 屏上要 41.6 个像素，而位图只有 42 个，整张图上屏前会被
-// 重采样一遍，边缘白白糊掉。
-static const CGFloat kAspect = 1.0;
+// 宽高比。系统自带那 20 个输入法图标的位图本身都是 1:1，但系统渲染它们时会
+// 套一层固定宽度的容器，第三方输入法的图标则按原比例显示——并排看下来我们的
+// 就明显窄一截，所以这里直接把图标做成横向长方形补上。
+// 取 1.3125 而不是 1.3，是要让逻辑宽 21pt 落在整数上：20.8pt 这种在 2x 屏上
+// 要 41.6 个像素，而位图只有 42 个，整张图上屏前会被重采样一遍，边缘白白糊掉。
+static const CGFloat kAspect = 1.3125;
 static const CGFloat kCornerRatio = 0.152; // 圆角占高度比例，量自系统输入法图标
 static const CGFloat kInkRatio = 0.6875;     // 字形墨迹占高度比例，量自系统「拼」「简」
 static NSString *const kGlyph = @"英";
@@ -40,7 +41,7 @@ static NSBitmapImageRep *RepForScale(CGFloat scale) {
                                                                colorSpaceName:NSCalibratedRGBColorSpace
                                                                   bytesPerRow:0
                                                                  bitsPerPixel:0];
-    rep.size = NSMakeSize(kHeight * kAspect, kHeight); // 逻辑尺寸锁在 16×16pt
+    rep.size = NSMakeSize(kHeight * kAspect, kHeight); // 逻辑尺寸锁在 21×16pt
 
     NSGraphicsContext *nsctx = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
     [NSGraphicsContext saveGraphicsState];

@@ -308,7 +308,10 @@ static const KeyCode KEY_RETURN = 36, KEY_TAB = 48, KEY_SPACE = 49, KEY_DELETE =
 
         NSString *convertedString = [originalText substringToIndex:originalText.length - 1];
 
-        [self setComposedBuffer:convertedString];
+        // 退格后同样作废已选候选。这里不能写成 setComposedBuffer:convertedString——
+        // 那样接着再敲字母时 composedBuffer 会停在退格那一刻的旧内容，空格上屏的
+        // 就是被截断的词。留空则 commitComposition 自然回落到 originalBuffer。
+        [self setComposedBuffer:@""];
         [self setOriginalBuffer:convertedString];
 
         [self showPreeditString:convertedString];
@@ -447,6 +450,10 @@ static const KeyCode KEY_RETURN = 36, KEY_TAB = 48, KEY_SPACE = 49, KEY_DELETE =
     NSMutableString *buffer = [self originalBuffer];
     [buffer appendString:input];
     _insertionIndex++;
+    // 又敲了新字母，之前选中的候选就作废了：composedBuffer 只代表「用户明确选中
+    // 的那个候选」，这里必须清掉。否则 commitComposition 会优先提交那个陈旧值，
+    // 表现为输入框显示 what、候选也是 what，一按空格却上屏 wha。
+    [self setComposedBuffer:@""];
     [self showPreeditString:buffer];
 }
 

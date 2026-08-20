@@ -51,5 +51,58 @@
 	</array>
 	<key>tsInputMethodIconFileKey</key>
 	<string>himTemplate.tiff</string>
+	<!-- 切换输入法时光标旁那个提示，显示的是输入模式 TISIconLabels/Primary 的
+	     文字（系统拼音写「拼音」，提示里显示首字「拼」），不是
+	     tsInputMethodIconFileKey 的图标——所以要给输入法声明一个输入模式。
+
+	     两个踩过的坑：
+	     1. tsInputModeListKey 必须包在 ComponentInputModeDict 里、并配上
+	        tsVisibleInputModeOrderedArrayKey（AinuIM/TamilIM/SCIM 都是这个
+	        结构）。直接放顶层系统不报错、但完全无视。
+	     2. 系统按 CFBundleVersion 缓存输入源信息，版本号不变就不会重新解析
+	        Info.plist——改这里必须同时换版本号（build-standalone.sh 已自动做）。
+
+	     模式的 TISInputSourceID 是「bundle ID + .english」，src/main.mm 的
+	     kSourceID 必须与之一致：声明模式后系统注册出的可选输入源就是模式那个
+	     ID，启用/选中靠它。 -->
+	<key>TISIconIsTemplate</key>
+	<true/>
+	<key>ComponentInputModeDict</key>
+	<dict>
+		<key>tsInputModeListKey</key>
+		<dict>
+			<key>github.dongyuwei.hallelujah.english</key>
+			<dict>
+				<key>TISIconLabels</key>
+				<dict>
+					<!-- 切换气泡渲染 CustomIcon（裸字形，白色印在蓝底上，与系统
+					     拼音一致）。不能用带框的 himTemplate.tiff：气泡会把方块
+					     整个填白、字反而成透明的洞。列表和菜单栏仍用带框图标。 -->
+					<key>CustomIcon</key>
+					<string>himGlyph@2x.pdf</string>
+					<key>Primary</key>
+					<string>英文</string>
+				</dict>
+				<key>TISInputSourceID</key>
+				<string>github.dongyuwei.inputmethod.hallelujahInputMethod.english</string>
+				<key>TISIntendedLanguage</key>
+				<string>en</string>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>himTemplate.tiff</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smRoman</string>
+			</dict>
+		</dict>
+		<key>tsVisibleInputModeOrderedArrayKey</key>
+		<array>
+			<string>github.dongyuwei.hallelujah.english</string>
+		</array>
+	</dict>
 </dict>
 </plist>
