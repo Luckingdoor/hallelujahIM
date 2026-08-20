@@ -14,9 +14,43 @@ rm -rf "${USER_HOME}/Library/Input Methods/hallelujah.app/" 2>/dev/null || true
 
 # copy sqlite databases to writable user directory
 DB_DIR="${USER_HOME}/Library/Application Support/hallelujah"
+WORDS_DB="${DB_DIR}/words_with_frequency_and_translation_and_ipa.sqlite3"
 mkdir -p "${DB_DIR}"
+
+# The bundled word list overwrites the user's copy, which would wipe any domain
+# dictionaries imported through the preferences page. Dump those rows first and
+# replay them afterwards, so a package upgrade ships a new base dictionary while
+# keeping the user's own additions. domain_words is the ledger written by the
+# import feature; if it isn't there yet, there is nothing to preserve.
+DOMAIN_DUMP=""
+if [ -f "${WORDS_DB}" ] && \
+   [ -n "$(/usr/bin/sqlite3 "${WORDS_DB}" "SELECT name FROM sqlite_master WHERE type='table' AND name='domain_words';" 2>/dev/null)" ]; then
+    DOMAIN_DUMP=$(/usr/bin/mktemp /tmp/hallelujah-domain-XXXXXX.sql)
+    /usr/bin/sqlite3 "${WORDS_DB}" <<'SQL' > "${DOMAIN_DUMP}" 2>/dev/null
+.mode list
+.headers off
+SELECT 'CREATE TABLE IF NOT EXISTS domain_words (word TEXT PRIMARY KEY, source TEXT, frequency INT);';
+SELECT 'INSERT OR IGNORE INTO words (word,frequency,translation,ipa) VALUES ('
+       || quote(w.word) || ',' || COALESCE(w.frequency,0) || ','
+       || quote(COALESCE(w.translation,'')) || ',' || quote(COALESCE(w.ipa,'')) || ');'
+  FROM words w JOIN domain_words d ON w.word = d.word;
+SELECT 'INSERT OR REPLACE INTO domain_words (word,source,frequency) VALUES ('
+       || quote(word) || ',' || quote(COALESCE(source,'')) || ',' || COALESCE(frequency,0) || ');'
+  FROM domain_words;
+SQL
+fi
+
 cp "/Library/Input Methods/hallelujah.app/Contents/Resources/words_with_frequency_and_translation_and_ipa.sqlite3" "${DB_DIR}/"
 cp "/Library/Input Methods/hallelujah.app/Contents/Resources/pinyin_data.sqlite3" "${DB_DIR}/"
+
+# replay the preserved domain words onto the freshly copied dictionary
+if [ -n "${DOMAIN_DUMP}" ] && [ -s "${DOMAIN_DUMP}" ]; then
+    /usr/bin/sqlite3 "${WORDS_DB}" < "${DOMAIN_DUMP}" 2>/dev/null || true
+    echo "restored $(/usr/bin/sqlite3 "${WORDS_DB}" 'SELECT COUNT(*) FROM domain_words;' 2>/dev/null) imported domain words" \
+        > /tmp/hallelujah-domain-restore.log
+fi
+rm -f "${DOMAIN_DUMP}" 2>/dev/null || true
+
 chown -R "${login_user}" "${DB_DIR}"
 
 # refresh the user's prefs cache BEFORE touching TIS so HIToolbox sees a
