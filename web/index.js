@@ -10,7 +10,12 @@ var app = new Vue({
       commitWordWithSpace: true,
       enableNextWordPrediction: false
     },
-    substitutions: {}
+    substitutions: {},
+    importFrequency: 300000,
+    importLoading: false,
+    importResult: null,
+    importError: "",
+    dictSources: null
   },
   methods: {
     getPreference() {
@@ -80,9 +85,67 @@ var app = new Vue({
           this.substitutions = data;
           this.subLoading = false;
         });
+    },
+    loadDictSources() {
+      fetch("http://localhost:62718/dictionary/sources")
+        .then(function(res) {
+          return res.json();
+        })
+        .then(data => {
+          this.dictSources = data;
+        });
+    },
+    importDictionary() {
+      var input = this.$refs.dictFile;
+      if (!input.files || !input.files.length) {
+        return;
+      }
+      this.importLoading = true;
+      this.importResult = null;
+      this.importError = "";
+
+      var form = new FormData();
+      form.append("file", input.files[0]);
+      form.append("frequency", String(this.importFrequency || 300000));
+
+      fetch("http://localhost:62718/dictionary/import", {
+        method: "POST",
+        body: form
+      })
+        .then(function(res) {
+          return res.json();
+        })
+        .then(data => {
+          this.importLoading = false;
+          if (data.error) {
+            this.importError = data.error;
+            return;
+          }
+          this.importResult = data;
+          this.dictSources = data.sources || this.dictSources;
+          input.value = "";
+        })
+        .catch(err => {
+          this.importLoading = false;
+          this.importError = String(err);
+        });
+    },
+    removeDictSource(source) {
+      fetch(
+        "http://localhost:62718/dictionary/sources/" + encodeURIComponent(source),
+        { method: "DELETE" }
+      )
+        .then(function(res) {
+          return res.json();
+        })
+        .then(data => {
+          this.dictSources = data.sources || [];
+          this.importResult = null;
+        });
     }
   }
 });
 
 app.getPreference();
 app.loadSubstitutions();
+app.loadDictSources();

@@ -42,6 +42,41 @@
       <p v-if="substitutions && Object.keys(substitutions).length === 0" class="hint">
         No substitutions defined.
       </p>
+
+      <h2>Domain Dictionaries</h2>
+      <p class="hint">
+        Upload a word list to add specialised vocabulary (medical, legal, …).
+        One entry per line, tab-separated: <code>word&#9;translation&#9;ipa</code>
+        (last two optional). Words already in the dictionary are left untouched —
+        only new ones are added.
+      </p>
+      <form v-on:submit.prevent="importDictionary()">
+        <input type="file" ref="dictFile" accept=".txt,.tsv,.csv" required />
+        <label class="freq">
+          Frequency:
+          <input type="number" v-model.number="importFrequency" min="1" step="10000" />
+        </label>
+        <button :disabled="importLoading">
+          {{ importLoading ? "importing..." : "Import" }}
+        </button>
+      </form>
+      <p v-if="importResult" class="hint result">
+        <strong>{{ importResult.source }}</strong> —
+        added {{ importResult.added }},
+        already present {{ importResult.existed }},
+        skipped {{ importResult.skipped }}.
+        <span v-if="importResult.added > 0">Restart the input method to take effect.</span>
+      </p>
+      <p v-if="importError" class="hint error">{{ importError }}</p>
+      <ul v-if="dictSources && dictSources.length">
+        <li v-for="s in dictSources" :key="s.source">
+          <code>{{ s.source }}</code> — {{ s.count }} words (freq {{ s.frequency }})
+          <button class="del" @click="removeDictSource(s.source)">×</button>
+        </li>
+      </ul>
+      <p v-if="dictSources && dictSources.length === 0" class="hint">
+        No domain dictionaries imported.
+      </p>
     </div>
     <script src="./vue.js"></script>
     <script src="./index.js"></script>

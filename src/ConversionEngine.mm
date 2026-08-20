@@ -170,6 +170,104 @@ NSDictionary *deserializeJSON(NSString *path) {
     self.substitutions = [self loadSubstitutionsFromDB];
 }
 
+#pragma mark - 领域词库导入
+
+// 记账表：哪些词是导入进来的、来自哪一批。撤销时据此删除，不会误伤原有词条。
+- (void)ensureDomainWordsTable:(FMDatabase *)db {
+    [db executeUpdate:@"CREATE TABLE IF NOT EXISTS domain_words ("
+                      @"word TEXT PRIMARY KEY, source TEXT, frequency INT)"];
+    // 早期版本的记账表没有 frequency 列，而 CREATE TABLE IF NOT EXISTS 不会改动
+    // 已存在的表结构——不补这一列的话，插入会因列数不符而失败，词照样进了 words
+    // 表却没有记账，撤销时就找不回来了。
+    if (![db columnExists:@"frequency" inTableWithName:@"domain_words"]) {
+        [db executeUpdate:@"ALTER TABLE domain_words ADD COLUMN frequency INT"];
+    }
+}
+
+- (NSDictionary *)importDomainWordsFromText:(NSString *)text
+                                  frequency:(NSInteger)frequency
+                                     source:(NSString *)source {
+    __block NSInteger added = 0, existed = 0, skipped = 0;
+    if (!_dbQueue || text.length == 0) {
+        return @{@"added" : @(0), @"existed" : @(0), @"skipped" : @(0)};
+    }
+
+    [_dbQueue inTransaction:^(FMDatabase *db, BOOL *rollback) {
+        [self ensureDomainWordsTable:db];
+        for (NSString *rawLine in [text componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]]) {
+            NSString *line = [rawLine stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if (line.length == 0 || [line hasPrefix:@"#"]) {
+                continue;
+            }
+            NSArray<NSString *> *cols = [line componentsSeparatedByString:@"\t"];
+            NSString *word = [cols[0] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].lowercaseString;
+            // words 表只存单词，带空格的词组归 Text-Expander 管
+            if (word.length == 0 || [word rangeOfString:@" "].location != NSNotFound) {
+                skipped++;
+                continue;
+            }
+            // 已有的词一律不动：原词库的频率和释义都比后加的可靠
+            if ([db intForQuery:@"SELECT COUNT(*) FROM words WHERE word = ?", word] > 0) {
+                existed++;
+                continue;
+            }
+            NSString *translation = cols.count > 1 ? cols[1] : @"";
+            NSString *ipa = cols.count > 2 ? cols[2] : @"";
+            [db executeUpdate:@"INSERT INTO words (word, frequency, translation, ipa) VALUES (?, ?, ?, ?)", word,
+                              @(frequency), translation, ipa];
+            [db executeUpdate:@"INSERT OR REPLACE INTO domain_words (word, source, frequency) VALUES (?, ?, ?)", word,
+                              source ?: @"", @(frequency)];
+            added++;
+        }
+    }];
+
+    return @{@"added" : @(added), @"existed" : @(existed), @"skipped" : @(skipped)};
+}
+
+- (NSArray<NSDictionary *> *)importedDomainSources {
+    __block NSMutableArray *result = [NSMutableArray array];
+    if (!_dbQueue) {
+        return result;
+    }
+    [_dbQueue inDatabase:^(FMDatabase *db) {
+        [self ensureDomainWordsTable:db];
+        FMResultSet *rs = [db executeQuery:@"SELECT source, COUNT(*) AS n, MAX(frequency) AS f "
+                                           @"FROM domain_words GROUP BY source ORDER BY source"];
+        while ([rs next]) {
+            [result addObject:@{
+                @"source" : [rs stringForColumn:@"source"] ?: @"",
+                @"count" : @([rs intForColumn:@"n"]),
+                @"frequency" : @([rs intForColumn:@"f"])
+            }];
+        }
+        [rs close];
+    }];
+    return result;
+}
+
+- (NSInteger)removeImportedDomainSource:(NSString *)source {
+    __block NSInteger removed = 0;
+    if (!_dbQueue || source.length == 0) {
+        return 0;
+    }
+    [_dbQueue inTransaction:^(FMDatabase *db, BOOL *rollback) {
+        [self ensureDomainWordsTable:db];
+        // 只删这一批导入的词，原有词条不受影响
+        FMResultSet *rs = [db executeQuery:@"SELECT word FROM domain_words WHERE source = ?", source];
+        NSMutableArray *words = [NSMutableArray array];
+        while ([rs next]) {
+            [words addObject:[rs stringForColumn:@"word"]];
+        }
+        [rs close];
+        for (NSString *w in words) {
+            [db executeUpdate:@"DELETE FROM words WHERE word = ?", w];
+            removed++;
+        }
+        [db executeUpdate:@"DELETE FROM domain_words WHERE source = ?", source];
+    }];
+    return removed;
+}
+
 - (NSMutableArray *)wordsStartsWith:(NSString *)prefix {
     if (!_dbQueue)
         return [[NSMutableArray alloc] init];

@@ -2,6 +2,7 @@
 #import "ConversionEngine.h"
 #import "GCDWebServer.h"
 #import "GCDWebServerDataResponse.h"
+#import "GCDWebServerMultiPartFormRequest.h"
 #import "GCDWebServerURLEncodedFormRequest.h"
 
 extern NSUserDefaults *preference;
@@ -101,6 +102,55 @@ static int port = 62718;
                               [engine removeSubstitution:key];
                           }
                           return [GCDWebServerDataResponse responseWithJSONObject:[engine allSubstitutions]];
+                      }];
+
+    // 领域词库导入：上传一个词表文件，只把词库里没有的词写进去
+    [webServer addHandlerForMethod:@"POST"
+                              path:@"/dictionary/import"
+                      requestClass:[GCDWebServerMultiPartFormRequest class]
+                      processBlock:^GCDWebServerResponse *(GCDWebServerRequest *request) {
+                          GCDWebServerMultiPartFormRequest *form = (GCDWebServerMultiPartFormRequest *)request;
+                          GCDWebServerMultiPartFile *file = [form firstFileForControlName:@"file"];
+                          if (!file) {
+                              return [GCDWebServerDataResponse responseWithJSONObject:@{@"error" : @"缺少文件"}];
+                          }
+                          NSString *text = [NSString stringWithContentsOfFile:file.temporaryPath
+                                                                     encoding:NSUTF8StringEncoding
+                                                                        error:nil];
+                          if (!text) {
+                              return [GCDWebServerDataResponse
+                                  responseWithJSONObject:@{@"error" : @"文件不是 UTF-8 文本"}];
+                          }
+                          NSString *freqStr = [form firstArgumentForControlName:@"frequency"].string;
+                          NSInteger freq = freqStr.integerValue > 0 ? freqStr.integerValue : 300000;
+                          NSString *source = file.fileName.length > 0 ? file.fileName : @"uploaded.txt";
+
+                          NSMutableDictionary *result = [[engine importDomainWordsFromText:text
+                                                                                frequency:freq
+                                                                                   source:source] mutableCopy];
+                          result[@"source"] = source;
+                          result[@"sources"] = [engine importedDomainSources];
+                          return [GCDWebServerDataResponse responseWithJSONObject:result];
+                      }];
+
+    [webServer addHandlerForMethod:@"GET"
+                              path:@"/dictionary/sources"
+                      requestClass:[GCDWebServerRequest class]
+                      processBlock:^GCDWebServerResponse *(GCDWebServerRequest *request) {
+                          return [GCDWebServerDataResponse responseWithJSONObject:[engine importedDomainSources]];
+                      }];
+
+    [webServer addHandlerForMethod:@"DELETE"
+                         pathRegex:@"/dictionary/sources/(.+)"
+                      requestClass:[GCDWebServerRequest class]
+                      processBlock:^GCDWebServerResponse *(GCDWebServerRequest *request) {
+                          NSArray *captures = [request attributeForKey:GCDWebServerRequestAttribute_RegexCaptures];
+                          NSString *source = [captures.firstObject stringByRemovingPercentEncoding];
+                          NSInteger removed = [engine removeImportedDomainSource:source];
+                          return [GCDWebServerDataResponse responseWithJSONObject:@{
+                              @"removed" : @(removed),
+                              @"sources" : [engine importedDomainSources]
+                          }];
                       }];
 
     NSMutableDictionary *options = [NSMutableDictionary dictionary];

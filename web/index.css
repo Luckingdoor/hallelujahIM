@@ -91,3 +91,21 @@ button.del:hover {
     font-size: 13px;
     margin: 8px 0;
 }
+
+/* 领域词库导入 */
+.hint.result {
+  color: #1a7f37;
+}
+.hint.error {
+  color: #c00;
+}
+label.freq {
+  margin-left: 8px;
+  font-size: 13px;
+}
+label.freq input {
+  width: 100px;
+}
+input[type="file"] {
+  font-size: 13px;
+}
