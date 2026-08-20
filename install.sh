@@ -16,12 +16,11 @@ if [ -d "$TARGET" ] && [ ! -d "$BACKUP" ]; then
     sudo chown -R "$(id -u):$(id -g)" "$BACKUP"
 fi
 
-echo "==> 注销旧的输入源注册"
-# 必须用旧的那份二进制来注销（它知道自己注册时用的 source ID），而且要在当前
-# 用户的图形会话里跑：加 sudo 会跑到 root 会话去，TIS 的改动不会落到用户这边。
-if [ -d "$TARGET" ]; then
-    "$TARGET/Contents/MacOS/hallelujah" --deactivate 2>/dev/null || true
-fi
+# 注意：这里刻意不调用 --deactivate。声明了输入模式之后，TISDisableInputSource
+# 会把输入法从系统的启用列表（AppleEnabledInputSources）里摘掉，而 --install 里的
+# TISEnableInputSource 加不回来——API 返回成功，列表却始终没有它。结果就是重装完
+# 输入法从菜单里消失，只能去「系统设置 › 键盘 › 输入法」手动重新添加一次。
+# 覆盖安装本身不需要先注销。
 
 echo "==> 停止正在运行的输入法"
 pkill -9 hallelujah 2>/dev/null || true

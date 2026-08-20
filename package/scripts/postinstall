@@ -23,17 +23,11 @@ chown -R "${login_user}" "${DB_DIR}"
 # clean state and any stale source entries can be re-evaluated.
 launchctl asuser "${login_uid}" sudo -u "${login_user}" killall -HUP cfprefsd 2>/dev/null || true
 
-# Deactivate any existing entries with our source ID first (deselect+disable).
-# This scrubs stale registrations left behind when a previous install was
-# removed by deleting the .app bundle manually -- without this, reinstalling
-# leaves duplicate entries in the system Input Sources menu.
-# Must run inside the user's Aqua launchd session for TIS changes to persist.
-launchctl asuser "${login_uid}" sudo -u "${login_user}" \
-    "/Library/Input Methods/hallelujah.app/Contents/MacOS/hallelujah" --deactivate 2>/dev/null || true
-
-# Let HIToolbox flush the deactivation before we re-register.
-launchctl asuser "${login_uid}" sudo -u "${login_user}" killall -HUP cfprefsd 2>/dev/null || true
-sleep 1
+# NOTE: deliberately no --deactivate here. Once the bundle declares input modes,
+# TISDisableInputSource drops it from AppleEnabledInputSources and the
+# TISEnableInputSource call below cannot put it back -- the API reports success
+# but the list never gains the entry, so the IME silently disappears from the
+# input menu and has to be re-added by hand in System Settings.
 
 # register + enable + select inside the user's Aqua launchd session
 # (plain `sudo -u` runs outside the user's GUI session and TIS changes don't
